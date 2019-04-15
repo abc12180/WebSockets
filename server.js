@@ -27,38 +27,42 @@ const server    = https.createServer(serverOptions, app)
 expressWs(app, server)
 
 app.ws('/', (ws, req) => {
-
 	for (var i=0; i < clients.length; i++) {
 		if(clients[i].authed = true) 
 			clients[i].send("New client!");
 	}
-    console.log((new Date()) + " Peer "
-          + req.ip + " connected.");
+    console.log((new Date()) + " Peer " + req.ip + " connected.");
 	clients.push(ws);
+
+	// Generate a random token, send it to the web socket, the front end will send it back to us as a GET request.
 	crypto.randomBytes(48, (err, buf) => {
 		console.log(`${buf.length} bytes of random data: ${buf.toString('hex')}`);
 		ws.token = buf.toString('hex');
 		ws.authed = false;
 		ws.send("Welcome " + ws.token);
 	});
+
+	// When we get a message from the client, we just sent it back (echo server)
 	ws.on('message', msg => {
 		console.log(msg);
 	    ws.send(msg)
     })
 
+	// Client disconnected; TODO Remove from client list
     ws.on('close', () => {		
-		console.log((new Date()) + " Peer "
-          + req.ip + " disconnected.");
-		
+		console.log((new Date()) + " Peer " + req.ip + " disconnected.");
     })
 })
 
+// Our index
 app.get('/', function(req, res){
 	for (var i=0; i < clients.length; i++) {
         clients[i].send("New http request");
     }
     res.sendFile(path.join(__dirname,"static","index.html"));
 });
+
+// When the web socket is opened it generates a token-we store it and the client sends that token server. We check it here. TODO cookies and session stuff
 app.get('/auth', function(req, res){
 	res.send(req.query.token);
 	for (var i=0; i < clients.length; i++) {
