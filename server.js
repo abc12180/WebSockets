@@ -3,35 +3,48 @@ const fs        = require('fs')
 const path 		= require('path');
 const express   = require('express')
 const expressWs = require('express-ws')
-//const crypto 	= require('crypto')
-
-let crypto;
-try {
-  crypto = require('crypto');
-	console.log("crypto is loaded");
-} catch (err) {
-  console.log('crypto support is disabled!');
-}
+const cookieParser = require('cookie-parser');
+const session 	= require("express-session");
+const crypto 	= require('crypto');
 
 
 const serverOptions = {
-cert: fs.readFileSync('ssl/chat.starkvoip.com.crt'),
-  key: fs.readFileSync('ssl/chat.starkvoip.com.key')
+	cert: fs.readFileSync('ssl/chat.starkvoip.com.crt'),
+	key: fs.readFileSync('ssl/chat.starkvoip.com.key')
 }
 
 var clients = [ ];
+var recentlyclosedclients = [ ];
 
 const app       = express()
 const server    = https.createServer(serverOptions, app)
+app.use(cookieParser());
+app.use(session({
+  secret: 'the quick brown fox jumps over the lazy dog',
+  resave: false,
+  saveUninitialized: true,
+  cookie: { secure: true }
+}))
 
 expressWs(app, server)
 
 app.ws('/', (ws, req) => {
-	for (var i=0; i < clients.length; i++) {
-		if(clients[i].authed = true) 
-			clients[i].send("New client!");
+	var reconn = false;
+	ws.cookies = req.cookies;
+	for (var n=0; n < recentlyclosedclients.length; n++) {
+		if(recentlyclosedclients[n].cookies['connect.sid'] == req.cookies['connect.sid']) {
+			reconn = true;
+		}
 	}
-    console.log((new Date()) + " Peer " + req.ip + " connected.");
+	if(reconn == false) {
+		for (var i=0; i < clients.length; i++) {
+			if(clients[i].authed == true) 
+				clients[i].send("New client!");
+		}
+    	console.log((new Date()) + " Peer " + req.ip + " connected.");
+	} else {
+		console.log((new Date()) + " Peer " + req.ip + " reconnected.")
+	}
 	clients.push(ws);
 
 	// Generate a random token, send it to the web socket, the front end will send it back to us as a GET request.
@@ -50,15 +63,23 @@ app.ws('/', (ws, req) => {
 
 	// Client disconnected; TODO Remove from client list
     ws.on('close', () => {		
+		for (var i=0; i < clients.length; i++) 	if(clients[i] == ws) clients.splice(i,1);
+		ws.died = Date.now();
+		recentlyclosedclients.push(ws);
+		console.log(ws.cookies);
 		console.log((new Date()) + " Peer " + req.ip + " disconnected.");
     })
 })
 
 // Our index
 app.get('/', function(req, res){
-	for (var i=0; i < clients.length; i++) {
-        clients[i].send("New http request");
-    }
+	if (req.session.views) {
+	    req.session.views++;
+	}
+	else {
+		req.session.views = 1;
+	}
+	console.log(req.session.views);
     res.sendFile(path.join(__dirname,"static","index.html"));
 });
 

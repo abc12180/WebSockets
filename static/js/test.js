@@ -1,5 +1,6 @@
 var socket = new WebSocket('wss://chat.starkvoip.com');
 socket.onopen = function(event) {
+	console.log("connected...");
 	socket.onmessage = function(event) {
 		console.log('Client received a message: ',event);
 		if(event.data.startsWith("Welcome")) {
